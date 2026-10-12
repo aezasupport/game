@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Attribute Arena</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#12141c;color:#e8eaf2;font:14px system-ui,sans-serif}
+#app{height:100%;display:flex;flex-direction:column;padding:8px;gap:6px;max-width:520px;margin:auto}
+#app.home{overflow-y:auto}
+button{font:inherit;color:inherit;border:0;border-radius:12px;padding:11px;background:#262a3a}
+button:disabled{opacity:.5}.go{background:#2f7d4f}.ul{background:#8a5a00}.blue{background:#2a5db0}
+.card{background:#1d2130;border-radius:12px;padding:10px 12px}
+.row{display:flex;gap:6px;align-items:center}.row>*{flex:1}.sp{display:flex;justify-content:space-between;align-items:center}
+h1{margin:4px 0;font-size:22px}.dim{opacity:.6;font-size:12px}
+.hp3 button{padding:9px 4px;font-size:12px;text-align:center}.hp3 button.on{outline:2px solid #ffd166;background:#34385a}
+.tabs button.on{background:#34385a}.fr{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #2a2f45}
+.fr button{flex:none;padding:6px 12px}
+.hero{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:12px;background:#1d2130}
+.hero.tg{outline:2px solid #ff5c5c;animation:p 1s infinite}.hp{color:#ff7a7a}.mana{color:#6cb8ff}.ch{color:#ffd166;letter-spacing:2px}
+.board{flex:1;display:flex;gap:6px;align-items:center;justify-content:center;min-height:90px}
+.m{width:18%;min-width:58px;padding:6px 3px;text-align:center;border-radius:10px;background:#242a40;font-size:11px;position:relative;border:2px solid transparent}
+.m b{display:block;font-size:15px}.m.t{border-color:#8a94b8}.m.rdy{border-color:#4cd97b}.m.sel{border-color:#ffd166;transform:translateY(-6px)}
+.m.tg{border-color:#ff5c5c;animation:p 1s infinite}.m i{position:absolute;top:-6px;right:-2px;font-style:normal}
+.log{font-size:11px;opacity:.65;min-height:44px;line-height:1.35;text-align:center}
+.hand{display:flex;gap:6px;overflow-x:auto;padding:6px 0 2px}
+.c{flex:0 0 92px;padding:6px;border-radius:10px;background:#1d2130;opacity:.45;font-size:11px;position:relative}
+.c.ok{opacity:1;outline:2px solid #4cd97b}.c .co{position:absolute;top:-4px;left:-4px;background:#3a7bff;border-radius:50%;width:22px;height:22px;text-align:center;line-height:22px;font-weight:700}
+.c .nm{font-weight:700;margin:10px 0 2px}.c .st{font-size:14px;font-weight:700}.c .tx{opacity:.7}
+.bar{display:flex;gap:6px}.bar button{flex:1}
+.over{position:fixed;inset:0;background:#000c;display:flex;align-items:center;justify-content:center;z-index:9}
+.over>div{background:#1d2130;border-radius:16px;padding:22px;text-align:center;display:flex;flex-direction:column;gap:12px;font-size:18px;min-width:240px}
+@keyframes p{50%{opacity:.6}}
+</style></head><body><div id="app"></div>
+<script>
+const tg=window.Telegram&&Telegram.WebApp;if(tg){tg.ready();tg.expand();}
+const Q=new URLSearchParams(location.search);
+const INIT=(tg&&tg.initData)||('dev:'+(sessionStorage.d||(sessionStorage.d=1+Math.floor(Math.random()*1e6)))+':'+encodeURIComponent(Q.get('dev')||'Игрок'));
+const IC={str:'💪',agi:'🏹',int:'🔮',uni:'⭐'},NM={str:'Сила',agi:'Ловкость',int:'Интеллект'};
+const ULT={str:'Несокрушимость',agi:'Шквал',int:'Метеор'};
+let P=null,S=null,ws=null,hero='str',tab='friends',top=[],sel=null,queued=false,invite=null,toast='';
+const $=document.getElementById('app');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(p,body){const r=await fetch(p,{method:body?'POST':'GET',headers:{'X-Init-Data':INIT,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+ if(!r.ok)throw new Error(r.status);return r.json()}
+function say(m){toast=m;if(tg&&tg.showAlert&&m.length<200)tg.showAlert(m);else console.log(m)}
+async function load(){try{P=await api('/api/me');top=await api('/api/top')}catch(e){P=null}render()}
+function send(o){if(ws&&ws.readyState==1)ws.send(JSON.stringify(o))}
+function connect(){ws=new WebSocket((location.protocol=='https:'?'wss://':'ws://')+location.host+'/ws?auth='+encodeURIComponent(INIT));
+ ws.onmessage=e=>{const m=JSON.parse(e.data);
+  if(m.t=='state'){S=m.s;sel=null;queued=false;if(S.win!==null)setTimeout(load,500);render()}
+  else if(m.t=='queued'){queued=true;render()}
+  else if(m.t=='invite'){invite=m;render()}
+  else if(m.t=='err'||m.t=='info'){say(m.m)}};
+ ws.onclose=()=>setTimeout(connect,2000)}
+function mt(x,cls,a,i){return`<div class="m ${cls}" data-a="${a}" data-i="${i}">${x.hs?'<i>⚡</i>':''}${esc(x.n)}<b>${x.at}/${x.h}</b>${x.t?'🛡':''}</div>`}
+function home(){
+ if(!P)return`<div class="card">Не удалось войти. Открой игру из Telegram-бота.</div>`;
+ const u=P.me,fr=P.friends;
+ return`<h1>⚔️ Attribute Arena</h1>
+ <div class="card sp"><span><b>${esc(u.name)}</b><br><span class="dim">Победы ${u.wins} · Поражения ${u.losses}</span></span><span style="font-size:20px">🏆 ${u.rating}</span></div>
+ <div class="row hp3">${['str','agi','int'].map(a=>`<button class="${hero==a?'on':''}" data-a="hero" data-i="${a}">${IC[a]}<br>${NM[a]}<br><span class="dim">💥 ${ULT[a]}</span></button>`).join('')}</div>
+ <div class="row"><button class="go" data-a="queue">⚔️ Найти соперника</button><button data-a="bot">🤖 Тренировка</button></div>
+ <div class="row tabs"><button class="${tab=='friends'?'on':''}" data-a="tab" data-i="friends">👥 Друзья (${fr.length})</button><button class="${tab=='top'?'on':''}" data-a="tab" data-i="top">🏅 Топ</button></div>
+ <div class="card">${tab=='friends'?
+  (fr.map(f=>`<div class="fr"><span>${f.online?'🟢':'⚫'} <b>${esc(f.name)}</b> <span class="dim">🏆${f.rating} · ${f.wins}/${f.losses}</span></span>${f.online?`<button class="blue" data-a="chal" data-i="${f.id}">⚔️ Вызвать</button>`:''}</div>`).join('')||'<span class="dim">Друзей пока нет</span>')+
+  `<button class="blue" style="width:100%;margin-top:8px" data-a="share">➕ Пригласить друга</button>`:
+  top.map((f,i)=>`<div class="fr"><span>${i+1}. <b>${esc(f.name)}</b></span><span>🏆${f.rating} <span class="dim">${f.wins}/${f.losses}</span></span></div>`).join('')}</div>`}
+function game(){const me=S.me,op=S.op,tgs=(sel!==null&&S.tg[sel])||[];
+ return`<div class="hero ${tgs.includes(-1)?'tg':''}" data-a="face"><span>${IC[op.a]} <b>${esc(op.n)}</b></span><span>🃏${op.hand} 📚${op.deck} <span class="hp">❤️${op.hp}/${op.max}</span></span></div>
+ <div class="board">${S.ob.map((x,j)=>mt(x,tgs.includes(j)?'tg':'','tgt',j)).join('')||'<span class="dim">пусто</span>'}</div>
+ <div class="log">${S.log.slice(-4).map(esc).join('<br>')}</div>
+ <div class="board">${S.mb.map((x,j)=>mt(x,(x.r&&S.turn?'rdy ':'')+(sel===j?'sel':''),'sel',j)).join('')||'<span class="dim">пусто</span>'}</div>
+ <div class="hero"><span>${IC[me.a]} <b>${esc(me.n)}</b> <span class="ch">${'●'.repeat(me.ch)+'○'.repeat(3-me.ch)}</span></span><span><span class="mana">💧${me.mana}/${me.mm}</span> <span class="hp">❤️${me.hp}/${me.max}</span></span></div>
+ <div class="hand">${S.hand.map((c,k)=>`<div class="c ${S.turn&&c.c<=me.mana?'ok':''}" data-a="play" data-i="${k}"><div class="co">${c.c}</div><div class="nm">${IC[c.ic]} ${esc(c.n)}</div>${c.k=='minion'?`<div class="st">${c.at}/${c.h}</div>`:''}<div class="tx">${esc(c.tx)}</div></div>`).join('')}</div>
+ <div class="bar">${me.ch>=3&&S.turn?`<button class="ul" data-a="ult">💥 ${ULT[me.a]}</button>`:''}<button class="go" data-a="end" ${S.turn?'':'disabled'}>${S.turn?'⏭ Конец хода':'Ход соперника…'}</button><button data-a="surr">🏳️</button></div>
+ ${S.win!==null?`<div class="over"><div>${S.win==2?'🤝 Ничья':S.win==1?'🏆 Победа!':'💀 Поражение'}<button class="go" data-a="menu">В меню</button></div></div>`:''}`}
+function render(){$.className=S?'':'home';
+ let h=S?game():home();
+ if(queued&&!S)h+=`<div class="over"><div>🔍 Ищем соперника…<button data-a="cancel">Отмена</button></div></div>`;
+ if(invite)h+=`<div class="over"><div>⚔️ ${esc(invite.name)} вызывает тебя!<div class="row"><button class="go" data-a="acc">Принять</button><button data-a="dec">Отказ</button></div></div></div>`;
+ $.innerHTML=h}
+$.addEventListener('click',async ev=>{const t=ev.target.closest('[data-a]');if(!t)return;const a=t.dataset.a,i=t.dataset.i;
+ if(a=='hero'){hero=i;render()}else if(a=='tab'){tab=i;render()}
+ else if(a=='queue'){send({t:'queue',a:hero})}else if(a=='bot'){send({t:'bot',a:hero})}else if(a=='cancel'){queued=false;send({t:'cancel'});render()}
+ else if(a=='chal'){send({t:'chal',a:hero,id:+i})}
+ else if(a=='acc'){send({t:'accept',a:hero});invite=null;render()}else if(a=='dec'){send({t:'decline'});invite=null;render()}
+ else if(a=='share'){const l='https://t.me/'+P.bot+'?start=f'+P.me.id,x='Го сыграем в Attribute Arena!';
+  if(tg)tg.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent(l)+'&text='+encodeURIComponent(x));
+  else{navigator.clipboard&&navigator.clipboard.writeText(l);say('Ссылка скопирована: '+l)}}
+ else if(a=='menu'){S=null;load()}
+ else if(S&&S.win===null){
+  if(a=='play'){send({t:'play',i:+i})}
+  else if(a=='sel'){sel=(S.turn&&S.mb[+i]&&S.mb[+i].r&&sel!==+i)?+i:null;render()}
+  else if(a=='tgt'||a=='face'){if(sel!==null){const to=a=='face'?-1:+i;if((S.tg[sel]||[]).includes(to))send({t:'atk',m:sel,to});sel=null;render()}}
+  else if(a=='ult')send({t:'ult'});else if(a=='end')send({t:'end'});
+  else if(a=='surr'&&confirm('Сдаться?'))send({t:'surr'})}});
+(async()=>{await load();
+ const f=Q.get('f');if(f&&P){try{const r=await api('/api/friend',{id:+f});say('Теперь вы друзья с '+r.name+'!');history.replaceState(null,'',location.pathname);await load()}catch(e){}}
+ connect()})();
+</script></body></html>
